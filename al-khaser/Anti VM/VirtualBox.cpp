@@ -1,5 +1,6 @@
 #include "VirtualBox.h"
 
+
 /*
 Registry key values
 */
@@ -179,14 +180,33 @@ BOOL vbox_window_class()
 /*
 Check for shared folders network profider
 */
+typedef DWORD(__stdcall* funcWNGetProviderName)(DWORD, LPTSTR, LPDWORD);
 BOOL vbox_network_share()
 {
-	TCHAR szProviderName[MAX_PATH] = _T("");
-	DWORD lpBufferSize = MAX_PATH;
+	//DWORD dwCount = 4096;
+	//DWORD dwSize = 4096 * sizeof(TCHAR);
+	//TCHAR * pProvider = (TCHAR *)LocalAlloc(LMEM_ZEROINIT, dwCount);
 
-	if (WNetGetProviderName(WNNC_NET_RDR2SAMPLE, szProviderName, &lpBufferSize) == NO_ERROR)
-	{
-		if (StrCmpI(szProviderName, _T("VirtualBox Shared Folders")) == 0)
+	DWORD dwSize = MAX_PATH;
+	TCHAR pProvider[MAX_PATH] = _T("");
+	
+	OutputDebugString(_T("WNetGetProviderName"));
+	
+	
+	funcWNGetProviderName pWNetGetProviderName;
+	//_tprintf(TEXT("\n WNetGetProviderName begin.. 0x%08x\n"), (DWORD)&WNetGetProviderName);
+	HMODULE hMprDLL = LoadLibrary(_T("mpr.dll"));
+	pWNetGetProviderName = (funcWNGetProviderName)GetProcAddress(hMprDLL, "WNetGetProviderNameW");
+	if (NULL == pWNetGetProviderName) {
+		_tprintf(TEXT("\n WNetGetProviderName get failed. 0x%08x\n"), (DWORD)&pWNetGetProviderName);
+		return FALSE;
+	}
+
+
+	if (pWNetGetProviderName(WNNC_NET_RDR2SAMPLE, pProvider, &dwSize) == NO_ERROR) {
+		OutputDebugString(pProvider);
+		_tprintf(TEXT("\n WNetGetProviderName end..\n"));
+		if (StrCmpI(pProvider, _T("VirtualBox Shared Folders")) == 0)
 			return TRUE;
 		else
 			return FALSE;
@@ -216,6 +236,160 @@ VOID vbox_processes()
 			print_results(FALSE, msg);
 	}
 }
+
+
+/**
+* Initialise the WMI client that will connect to the local machine WMI
+* namespace. It will return TRUE if the connection was successful, FALSE
+* otherwise.
+*/
+int wmi_initialize(const wchar_t *query_namespace, IWbemServices **pSvc) {
+	BSTR bstrNamespace;
+	//IWbemLocator *locator = NULL;
+	int iRetn = 0;
+
+	// Initialize COM
+	HRESULT hres = CoInitializeEx(0, COINIT_MULTITHREADED);
+	if (FAILED(hres)) {
+		return FALSE;
+	}
+
+	_tprintf(TEXT("\n CoCreateInstance begin..\n"));
+	IWbemLocator *pLoc = NULL;
+	hres = CoCreateInstance(
+		CLSID_WbemLocator,
+		NULL,
+		CLSCTX_INPROC_SERVER,
+		IID_IWbemLocator, (LPVOID *)&pLoc);
+
+	if (FAILED(hres)) {
+		CoUninitialize();
+		return FALSE;
+	}
+
+	_tprintf(TEXT("\n CoCreateInstance end..\n"));
+	bstrNamespace = SysAllocString(query_namespace);
+
+	// Connect to the namespace with the current user and obtain pointer
+	// services to make IWbemServices calls.
+	
+	_tprintf(TEXT("\n pLoc->ConnectServer begin..\n"));
+	hres = pLoc->ConnectServer(
+		bstrNamespace, // Object path of WMI namespace
+		NULL,                    // User name. NULL = current user
+		NULL,                    // User password. NULL = current
+		0,                       // Locale. NULL indicates current
+		NULL,                    // Security flags.
+		0,                       // Authority (for example, Kerberos)
+		0,                       // Context object 
+		pSvc                    // pointer to IWbemServices proxy
+	);
+
+	iRetn = FAILED(hres) ? FALSE : TRUE;
+
+	_tprintf(TEXT("\n pLoc->ConnectServer end..\n"));
+	SysFreeString(bstrNamespace);
+	//pLoc->Release();
+
+	_tprintf(TEXT("\n wmi_initialize end..\n"));
+	return iRetn;
+}
+
+
+/**
+* Check if the device identifier ("PCI\\VEN_80EE&DEV_CAFE") in the returned rows.
+*/
+int vbox_wmi_check_row(IWbemClassObject *row) {
+	CIMTYPE type = CIM_ILLEGAL;
+	VARIANT value;
+
+	HRESULT hresult = row->Get(L"DeviceId", 0, &value, &type, 0);
+
+	if (FAILED(hresult) || V_VT(&value) == VT_NULL || type != CIM_STRING) {
+		return FALSE;
+	}
+
+	return (wcsstr(V_BSTR(&value), L"PCI\\VEN_80EE&DEV_CAFE") != NULL) ? TRUE : FALSE;
+}
+
+/**
+* Check for devices VirtualBox devices using WMI.
+*/
+int vbox_wmi_devices() {
+	IWbemServices *services = NULL;
+
+	_tprintf(TEXT("\n wmi_initialize begin..\n"));
+	if (wmi_initialize(L"root\\cimv2", &services) != TRUE) {
+		return FALSE;
+	}
+
+	_tprintf(TEXT("\n wmi_initialize ok..\n"));
+	int result = wmi_check_query(services, L"WQL", L"SELECT DeviceId FROM Win32_PnPEntity",
+		&vbox_wmi_check_row);
+
+	_tprintf(TEXT("\n wmi_check_query ok..\n"));
+	wmi_cleanup(services);
+
+	_tprintf(TEXT("\n wmi_cleanup ok..\n"));
+
+	return result;
+}
+
+
+/**
+* Execute the suplied WMI query and call the row checking function for each row returned.
+*/
+int wmi_check_query(IWbemServices *services, const wchar_t *language, const wchar_t *query,
+	wmi_check_row check_row) {
+	int status = FALSE;
+	IEnumWbemClassObject *queryrows = NULL;
+	BSTR wmilang = SysAllocString(language);
+	BSTR wmiquery = SysAllocString(query);
+
+	// Execute the query.
+	HRESULT result = services->ExecQuery(wmilang, wmiquery, WBEM_FLAG_BIDIRECTIONAL, NULL, &queryrows);
+
+	if (!FAILED(result) && (queryrows != NULL)) {
+		IWbemClassObject * batchrows[10];
+		ULONG index, count = 0;
+		result = WBEM_S_NO_ERROR;
+
+		while (WBEM_S_NO_ERROR == result && status == FALSE) {
+			// Retrieve 10 rows (instances) each time.
+			result = queryrows->Next(WBEM_INFINITE, 10,
+				batchrows, &count);
+
+			if (!SUCCEEDED(result)) {
+				continue;
+			}
+
+			for (index = 0; index < count && status == FALSE; index++) {
+				status = check_row(batchrows[index]);
+
+				batchrows[index]->Release();
+			}
+		}
+
+		queryrows->Release();
+	}
+
+	SysFreeString(wmiquery);
+	SysFreeString(wmilang);
+
+	return status;
+}
+
+/**
+* Cleanup WMI.
+*/
+void wmi_cleanup(IWbemServices *services) {
+	if (services != NULL) {
+		services->Release();
+	}
+
+	CoUninitialize();
+}
+
 
 /*
 Check vbox devices using WMI

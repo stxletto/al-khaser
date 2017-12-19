@@ -228,7 +228,9 @@ VOID timing_IcmpSendEcho(UINT delayInMilliSeconds)
 	char SendData[32] = "Data Buffer";
 	LPVOID ReplyBuffer = NULL;
 	DWORD ReplySize = 0;
+
 	const char ipaddr[] = "224.0.0.0";
+	IPAddr DstAddr = (IPAddr)inet_addr(ipaddr);
 
 	hIcmpFile = IcmpCreateFile();
 	if (hIcmpFile == INVALID_HANDLE_VALUE) {
@@ -246,7 +248,7 @@ VOID timing_IcmpSendEcho(UINT delayInMilliSeconds)
 
 
 	IcmpSendEcho(hIcmpFile, DestinationAddress, SendData, sizeof(SendData), NULL, ReplyBuffer, ReplySize, delayInMilliSeconds);
-
+	IcmpCloseHandle(hIcmpFile);
 failed:
 	;
 }

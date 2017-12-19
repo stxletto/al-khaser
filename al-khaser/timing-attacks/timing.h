@@ -6,6 +6,7 @@
 #include <icmpapi.h>
 
 #pragma comment(lib, "Winmm.lib")
+#pragma comment(lib,"ws2_32.lib")
 
 #include "..\Shared\Common.h"
 

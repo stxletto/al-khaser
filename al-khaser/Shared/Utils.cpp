@@ -645,7 +645,10 @@ BOOL InitWMI(IWbemServices **pSvc, IWbemLocator **pLoc)
 	}
 
 	// Connect to the root\cimv2 namespace 
-	hres = (*pLoc)->ConnectServer(_T("ROOT\\CIMV2"), NULL, NULL, 0, NULL, 0, 0, pSvc);
+	BSTR bstrNamespace = SysAllocString(_T("ROOT\\CIMV2"));
+	hres = (*pLoc)->ConnectServer(bstrNamespace, NULL, NULL, 0, NULL, 0, 0, pSvc);
+	SysFreeString(bstrNamespace);
+
 	if (FAILED(hres)) {
 		print_last_error(_T("ConnectServer"));
 		(*pLoc)->Release();

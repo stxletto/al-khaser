@@ -1,6 +1,29 @@
 #include "Common.h"
 #include "Utils.h"
 #include "log.h"
+#include <exception>
+
+#include "md5.h"  
+#include <iostream>  
+#include <string>
+
+using namespace std;
+
+void md5(unsigned char *inBuf, unsigned int inLen, char *outBuf, unsigned int inSize)
+{
+	MD5_CTX mdContext;
+	
+	MD5Init(&mdContext);
+	//MD5Update(&mdContext, (unsigned char*)const_cast<char*>(strPlain.c_str()), iLen);
+	MD5Update(&mdContext, const_cast<unsigned char*>(inBuf), inLen);
+	MD5Final(&mdContext);
+
+	for (int i = 0; i < 16; i++) {
+		sprintf_s(&outBuf[i * 2], inSize, "%02X", mdContext.digest[i]);
+	}
+
+	return;
+}
 
 VOID print_detected()
 {
@@ -69,6 +92,25 @@ VOID print_results(int result, TCHAR* szMsg)
 	/* log to file*/
 	TCHAR buffer[256] = _T("");
 	_stprintf_s(buffer, sizeof(buffer) / sizeof(TCHAR), _T("[*] %s -> %d"), szMsg, result);
+
+
+	UINT inLen = _tcslen(szMsg) * 2;
+	char szMD5[64] = "";
+
+	md5((unsigned char*)szMsg, inLen, &szMD5[0], 64);
+
+	TCHAR new_name[256] = _T("");
+	TCHAR * pName = ascii_to_wide_str(szMD5);
+	_stprintf_s(new_name, sizeof(new_name) / sizeof(TCHAR), _T(".\\config\\%s_%d"), pName, result);
+
+	
+	HANDLE hFile = CreateFile(new_name, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING, NULL);
+	DWORD dwWrite = 0;
+	WriteFile(hFile, &buffer, lstrlen(buffer), &dwWrite, NULL);
+	CloseHandle(hFile);
+
+	
+	
 	LOG_PRINT(buffer);
 }
 
@@ -146,7 +188,7 @@ TCHAR* ascii_to_wide_str(CHAR* lpMultiByteStr)
 	/* Get the required size */
 	CONST INT iSizeRequired = MultiByteToWideChar(CP_ACP, 0, lpMultiByteStr, -1, NULL, 0);
 
-	TCHAR *lpWideCharStr = (TCHAR*)MALLOC(12 * sizeof(TCHAR));
+	TCHAR *lpWideCharStr = (TCHAR*)MALLOC(iSizeRequired * sizeof(TCHAR));
 
 	/* Do the conversion */
 	INT iNumChars =  MultiByteToWideChar(CP_ACP, 0, lpMultiByteStr, -1, lpWideCharStr, iSizeRequired);

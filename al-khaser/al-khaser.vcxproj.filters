@@ -75,7 +75,6 @@
     <None Include="macros.vba">
       <Filter>Macro</Filter>
     </None>
-    <None Include="..\CHANGELOG.md" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Anti Debug\CheckRemoteDebuggerPresentAPI.cpp">
@@ -220,17 +219,8 @@
     <ClCompile Include="Anti Debug\TLS_callbacks.cpp">
       <Filter>Anti Debug\Source</Filter>
     </ClCompile>
-    <ClCompile Include="Anti Debug\NtQuerySystemInformation_SystemKernelDebuggerInformation.cpp">
-      <Filter>Anti Debug\Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Anti Debug\SharedUserData_KernelDebugger.cpp">
-      <Filter>Anti Debug\Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Anti Debug\ProcessJob.cpp">
-      <Filter>Anti Debug\Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Anti VM\SystemFirmware.cpp">
-      <Filter>Anti VM / Emulation\Source</Filter>
+    <ClCompile Include="Shared\md5.cpp">
+      <Filter>Shared</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -381,25 +371,16 @@
     <ClInclude Include="Anti Debug\TLS_callbacks.h">
       <Filter>Anti Debug\Header</Filter>
     </ClInclude>
-    <ClInclude Include="Anti Debug\NtQuerySystemInformation_SystemKernelDebuggerInformation.h">
-      <Filter>Anti Debug\Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Anti Debug\SharedUserData_KernelDebugger.h">
-      <Filter>Anti Debug\Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Anti Debug\ProcessJob.h">
-      <Filter>Anti Debug\Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Anti VM\SystemFirmware.h">
-      <Filter>Anti VM / Emulation\Header</Filter>
+    <ClInclude Include="Shared\md5.h">
+      <Filter>Shared</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="Anti Debug\int2d_x64.asm">
-      <Filter>Anti Debug\Source</Filter>
-    </MASM>
     <MASM Include="Anti Debug\int2d_x86.asm">
       <Filter>Anti Debug\Source</Filter>
+    </MASM>
+    <MASM Include="Anti Debug\int2d_x64.asm">
+      <Filter>Anti Debug</Filter>
     </MASM>
   </ItemGroup>
 </Project>
